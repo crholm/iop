@@ -3,7 +3,7 @@
 > A small cli tool for some daily needs. 
 
 # Installation
-```go install https://github.com/crholm/iop```
+```go get github.com/crholm/iop```
 
 # Usage
 
