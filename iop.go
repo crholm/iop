@@ -254,22 +254,27 @@ func main() {
 								l = int(ii)
 							}
 
-							var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-							var dest = make([]byte, l, l)
+							var runes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
-							n, err := rand.Read(dest)
-							if err != nil{
-								return err
-							}
-							if n != len(dest){
-								return errors.New("could not generate enough random")
-							}
+							// creating an even cyclic group containing all letters the same number of times
+							max := len(runes) * (256/len(runes))
 							acc := ""
-							for _, b := range dest{
-								acc += string(letterRunes[int(b) % len(letterRunes) ])
+							for {
+								if len(acc) == l{
+									break
+								}
+								b := make([]byte, 1,1)
+								_, err := rand.Read(b)
+								if err != nil{
+									return err
+								}
+								// ignoring random things that is not in cyclic group,
+								// since this will cause some letters to be more frequent then others
+								if b[0] < byte(max){
+									acc += string(runes[int(b[0]) % len(runes)])
+								}
 							}
 							fmt.Println(acc)
-
 							return nil
 						},
 					},
