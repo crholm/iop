@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-xmlfmt/xmlfmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/urfave/cli/v2" // imports as package "cli"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -28,6 +30,27 @@ func main() {
 				Name:  "decode",
 				Usage: "decode std from something",
 				Subcommands: []*cli.Command{
+					{
+						Name:  "url",
+						Usage: "decodes a url query string",
+						Action: func(c *cli.Context) error {
+
+							in := os.Stdin
+							out := os.Stdout
+
+							b, err := ioutil.ReadAll(in)
+							if err != nil{
+								return err
+							}
+							s ,err := url.QueryUnescape(string(b))
+							if err != nil{
+								return err
+							}
+							_, err = out.Write([]byte(s))
+
+							return err
+						},
+					},
 					{
 						Name:  "b64",
 						Usage: "base64",
@@ -86,12 +109,77 @@ func main() {
 							return err
 						},
 					},
+					{
+						Name:  "jwt",
+						Usage: "decodes and prints a jwt token",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+							b, err := ioutil.ReadAll(in)
+							if err != nil{
+								return err
+							}
+							b = bytes.ReplaceAll(b, []byte(" "), []byte(""))
+							b = bytes.ReplaceAll(b, []byte("\n"), []byte(""))
+							b = bytes.ReplaceAll(b, []byte("\r"), []byte(""))
+							parts := strings.Split(string(b), ".")
+							if len(parts) != 3{
+								return errors.New("expected 3 parts of the jwt token, there were " + fmt.Sprintf("%d", len(parts)))
+							}
+							header, err := base64.RawURLEncoding.DecodeString(parts[0])
+							if err != nil{
+								return err
+							}
+							payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+							if err != nil{
+								return err
+							}
+							sigString := strings.TrimSpace(parts[2])
+							token := struct {
+								Header json.RawMessage `json:"header"`
+								Payload json.RawMessage `json:"payload"`
+								Signature string `json:"signature"`
+							}{
+								Header: header,
+								Payload: payload,
+								Signature: sigString,
+							}
+
+							f := prettyjson.NewFormatter()
+							f.Indent = 2
+							f.DisabledColor = false
+							tokenData, err := f.Marshal(token)
+							if err != nil{
+								return err
+							}
+							_, err = os.Stdout.Write(tokenData)
+
+							return err
+						},
+					},
 				},
 			},
 			{
 				Name:  "encode",
 				Usage: "encode std to something",
 				Subcommands: []*cli.Command{
+					{
+						Name:  "url",
+						Usage: "url query encodes a string",
+						Action: func(c *cli.Context) error {
+
+							in := os.Stdin
+							out := os.Stdout
+
+							b, err := ioutil.ReadAll(in)
+							if err != nil{
+								return err
+							}
+							s := url.QueryEscape(string(b))
+							_, err = out.Write([]byte(s))
+
+							return err
+						},
+					},
 					{
 						Name:  "b64",
 						Usage: "base64",
