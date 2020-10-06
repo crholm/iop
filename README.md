@@ -25,7 +25,7 @@ COMMANDS:
 
 ```
 
-## Decode
+## decode
 ```text
 NAME:
    iop decode - decode std from something
@@ -42,7 +42,7 @@ COMMANDS:
    help, h      Shows a list of commands or help for one command
 ```
 
-## Encode
+## encode
 ```text
 NAME:
    iop encode - encode std to something
