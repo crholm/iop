@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/atotto/clipboard"
 	"github.com/go-xmlfmt/xmlfmt"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/satori/go.uuid"
@@ -320,6 +321,41 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:  "clip",
+				Usage: "managing clipboard",
+				Subcommands: []*cli.Command{
+					{
+						Name:    "copy",
+						Aliases: []string{"to", "c"},
+						Usage:   "puts things from std in onto the clipboard",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+
+							b, err := ioutil.ReadAll(in)
+							if err != nil {
+								return err
+							}
+							return clipboard.WriteAll(string(b))
+						},
+					},
+					{
+						Name:    "paste",
+						Aliases: []string{"from", "v"},
+						Usage:   "puts things in clipboard onto std out",
+						Action: func(c *cli.Context) error {
+							str, err := clipboard.ReadAll()
+							if err != nil {
+								return err
+							}
+
+							_, err = os.Stdout.Write([]byte(str))
+							return err
+						},
+					},
+				},
+			},
+
 			{
 				Name:  "rand",
 				Usage: "generate something random",
