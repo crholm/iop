@@ -12,7 +12,7 @@ import (
 	"github.com/go-xmlfmt/xmlfmt"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/satori/go.uuid"
-	"github.com/urfave/cli/v2" // imports as package "cli"
+	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -39,11 +39,11 @@ func main() {
 							out := os.Stdout
 
 							b, err := ioutil.ReadAll(in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
-							s ,err := url.QueryUnescape(string(b))
-							if err != nil{
+							s, err := url.QueryUnescape(string(b))
+							if err != nil {
 								return err
 							}
 							_, err = out.Write([]byte(s))
@@ -52,8 +52,9 @@ func main() {
 						},
 					},
 					{
-						Name:  "b64",
-						Usage: "base64",
+						Name:    "b64",
+						Aliases: []string{"base64"},
+						Usage:   "decodes a base64 string",
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
 								Name:    "url",
@@ -67,21 +68,22 @@ func main() {
 							out := os.Stdout
 
 							e := base64.StdEncoding
-							if c.Bool("url"){
+							if c.Bool("url") {
 								e = base64.URLEncoding
 							}
 							d := base64.NewDecoder(e, in)
-							 _, err := io.Copy(out, d)
+							_, err := io.Copy(out, d)
 							return err
 						},
 					},
 					{
-						Name:  "b32",
-						Usage: "base32",
+						Name:    "b32",
+						Aliases: []string{"base32"},
+						Usage:   "decodes a base32 string",
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
-								Name:    "hex",
-								Usage:   "hex version",
+								Name:  "hex",
+								Usage: "hex version",
 							},
 						},
 						Action: func(c *cli.Context) error {
@@ -90,7 +92,7 @@ func main() {
 							out := os.Stdout
 
 							e := base32.StdEncoding
-							if c.Bool("hex"){
+							if c.Bool("hex") {
 								e = base32.HexEncoding
 							}
 							d := base32.NewDecoder(e, in)
@@ -100,7 +102,7 @@ func main() {
 					},
 					{
 						Name:  "hex",
-						Usage: "hex",
+						Usage: "decodes a hex string",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
 							out := os.Stdout
@@ -111,36 +113,36 @@ func main() {
 					},
 					{
 						Name:  "jwt",
-						Usage: "decodes and prints a jwt token",
+						Usage: "decodes a jwt token",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
 							b, err := ioutil.ReadAll(in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							b = bytes.ReplaceAll(b, []byte(" "), []byte(""))
 							b = bytes.ReplaceAll(b, []byte("\n"), []byte(""))
 							b = bytes.ReplaceAll(b, []byte("\r"), []byte(""))
 							parts := strings.Split(string(b), ".")
-							if len(parts) != 3{
+							if len(parts) != 3 {
 								return errors.New("expected 3 parts of the jwt token, there were " + fmt.Sprintf("%d", len(parts)))
 							}
 							header, err := base64.RawURLEncoding.DecodeString(parts[0])
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							sigString := strings.TrimSpace(parts[2])
 							token := struct {
-								Header json.RawMessage `json:"header"`
-								Payload json.RawMessage `json:"payload"`
-								Signature string `json:"signature"`
+								Header    json.RawMessage `json:"header"`
+								Payload   json.RawMessage `json:"payload"`
+								Signature string          `json:"signature"`
 							}{
-								Header: header,
-								Payload: payload,
+								Header:    header,
+								Payload:   payload,
 								Signature: sigString,
 							}
 
@@ -148,7 +150,7 @@ func main() {
 							f.Indent = 2
 							f.DisabledColor = false
 							tokenData, err := f.Marshal(token)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							_, err = os.Stdout.Write(tokenData)
@@ -164,14 +166,14 @@ func main() {
 				Subcommands: []*cli.Command{
 					{
 						Name:  "url",
-						Usage: "url query encodes a string",
+						Usage: "url query encodes a data",
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
 							out := os.Stdout
 
 							b, err := ioutil.ReadAll(in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							s := url.QueryEscape(string(b))
@@ -181,12 +183,13 @@ func main() {
 						},
 					},
 					{
-						Name:  "b64",
-						Usage: "base64",
+						Name:    "b64",
+						Aliases: []string{"base64"},
+						Usage:   "base64 encodes a data",
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
-								Name:    "url",
-								Usage:   "url encoding",
+								Name:  "url",
+								Usage: "url encoding",
 							},
 						},
 						Action: func(c *cli.Context) error {
@@ -195,24 +198,25 @@ func main() {
 							out := os.Stdout
 
 							e := base64.StdEncoding
-							if c.Bool("url"){
+							if c.Bool("url") {
 								e = base64.URLEncoding
 							}
 							encoder := base64.NewEncoder(e, out)
 							_, err := io.Copy(encoder, in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							return encoder.Close()
 						},
 					},
 					{
-						Name:  "b32",
-						Usage: "base32",
+						Name:    "b32",
+						Aliases: []string{"base32"},
+						Usage:   "base32 encodes a data",
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
-								Name:    "hex",
-								Usage:   "hex version",
+								Name:  "hex",
+								Usage: "hex version",
 							},
 						},
 						Action: func(c *cli.Context) error {
@@ -221,12 +225,12 @@ func main() {
 							out := os.Stdout
 
 							e := base32.StdEncoding
-							if c.Bool("hex"){
+							if c.Bool("hex") {
 								e = base32.HexEncoding
 							}
 							encoder := base32.NewEncoder(e, out)
 							_, err := io.Copy(encoder, in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							return encoder.Close()
@@ -234,7 +238,7 @@ func main() {
 					},
 					{
 						Name:  "hex",
-						Usage: "hex",
+						Usage: "hex encodes a data",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
 							out := os.Stdout
@@ -250,16 +254,15 @@ func main() {
 				Usage: "format something from std in",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "json",
+						Name: "json",
 						Flags: []cli.Flag{
 							&cli.IntFlag{
-								Name:    "indent",
+								Name:  "indent",
 								Value: 2,
 							},
 							&cli.BoolFlag{
-								Name:    "color",
+								Name: "color",
 							},
-
 						},
 						Action: func(c *cli.Context) error {
 
@@ -270,7 +273,7 @@ func main() {
 							color := c.Bool("color")
 
 							b, err := ioutil.ReadAll(in)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 
@@ -278,7 +281,7 @@ func main() {
 							f.Indent = indent
 							f.DisabledColor = !color
 							b, err = f.Format(b)
-							if err != nil{
+							if err != nil {
 								return err
 							}
 							_, err = io.Copy(out, bytes.NewBuffer(b))
@@ -286,10 +289,10 @@ func main() {
 						},
 					},
 					{
-						Name:  "xml",
+						Name: "xml",
 						Flags: []cli.Flag{
 							&cli.IntFlag{
-								Name:    "indent",
+								Name:  "indent",
 								Value: 2,
 							},
 						},
@@ -302,11 +305,11 @@ func main() {
 
 							b, err := ioutil.ReadAll(in)
 
-							if err != nil{
+							if err != nil {
 								return err
 							}
 
-							ii := strings.Join(make([]string, indent+1)," ")
+							ii := strings.Join(make([]string, indent+1), " ")
 
 							buf := xmlfmt.FormatXML(string(b), "", ii)
 
@@ -319,15 +322,14 @@ func main() {
 			},
 			{
 				Name:  "rand",
-				Usage: "generate something",
+				Usage: "generate something random",
 				Subcommands: []*cli.Command{
 					{
 						Name:  "uuid",
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
-							u := uuid.NewV4()
-							fmt.Println(u.String())
-							return nil
+							_, err := os.Stdout.Write([]byte(uuid.NewV4().String()))
+							return err
 						},
 					},
 					{
@@ -338,32 +340,32 @@ func main() {
 
 							ls := c.Args().Get(0)
 							ii, err := strconv.ParseInt(ls, 10, 32)
-							if err == nil{
+							if err == nil {
 								l = int(ii)
 							}
 
 							var runes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 							// creating an even cyclic group containing all letters the same number of times
-							max := len(runes) * (256/len(runes))
+							max := len(runes) * (256 / len(runes))
 							acc := ""
 							for {
-								if len(acc) == l{
+								if len(acc) == l {
 									break
 								}
-								b := make([]byte, 1,1)
+								b := make([]byte, 1, 1)
 								_, err := rand.Read(b)
-								if err != nil{
+								if err != nil {
 									return err
 								}
 								// ignoring random things that is not in cyclic group,
 								// since this will cause some letters to be more frequent then others
-								if b[0] < byte(max){
-									acc += string(runes[int(b[0]) % len(runes)])
+								if b[0] < byte(max) {
+									acc += string(runes[int(b[0])%len(runes)])
 								}
 							}
-							fmt.Println(acc)
-							return nil
+							_, err = os.Stdout.Write([]byte(acc))
+							return err
 						},
 					},
 					{
@@ -373,17 +375,17 @@ func main() {
 							l := 20
 							ls := c.Args().Get(0)
 							ii, err := strconv.ParseInt(ls, 10, 32)
-							if err == nil{
+							if err == nil {
 								l = int(ii)
 							}
 
 							var dest = make([]byte, l, l)
 
 							n, err := rand.Read(dest)
-							if err != nil{
+							if err != nil {
 								return err
 							}
-							if n != len(dest){
+							if n != len(dest) {
 								return errors.New("could not generate enough random")
 							}
 							_, err = os.Stdout.Write(dest)
@@ -398,10 +400,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		_, _ =fmt.Fprintln(os.Stderr, "got err", err)
+		_, _ = fmt.Fprintln(os.Stderr, "got err", err)
 		os.Exit(1)
 	}
 }
-
-
-
