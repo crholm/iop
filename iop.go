@@ -16,20 +16,29 @@ import (
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 )
 
+
+var out io.Writer
 func main() {
+
+
 	app := &cli.App{
 		Name:  "iop",
 		Usage: "a tool for converting and formatting things from std in to std out",
+		UsageText: "You can use -- as piping between commands, eg. echo 124 | iop conv string-to-int -- encode hex -- clip copy",
 		Commands: []*cli.Command{
 			{
-				Name:  "decode",
-				Usage: "decode std from something",
+				Name:    "decode",
+				Aliases: []string{"dec"},
+				Usage:   "decode std from something",
 				Subcommands: []*cli.Command{
 					{
 						Name:  "url",
@@ -37,7 +46,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							b, err := ioutil.ReadAll(in)
 							if err != nil {
@@ -49,6 +57,38 @@ func main() {
 							}
 							_, err = out.Write([]byte(s))
 
+							return err
+						},
+					},
+					{
+						Name:    "binary",
+						Aliases: []string{"bin", "0b"},
+						Usage:   "decodes a string of 1s and 0s into binary data",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+							bs, err := ioutil.ReadAll(in)
+							if err != nil {
+								return err
+							}
+
+							var bb byte
+							for i, b := range bytes.TrimSpace(bs) {
+								bb = bb << 1
+								switch b {
+								case '1':
+									bb = bb ^ 1
+								case '0':
+								default:
+									return errors.New("non 1,0 char was found")
+								}
+								if i%8 == 7 {
+									_, err = out.Write([]byte{bb})
+									if err != nil {
+										return err
+									}
+									bb = 0
+								}
+							}
 							return err
 						},
 					},
@@ -66,7 +106,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							e := base64.StdEncoding
 							if c.Bool("url") {
@@ -90,7 +129,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							e := base32.StdEncoding
 							if c.Bool("hex") {
@@ -102,11 +140,11 @@ func main() {
 						},
 					},
 					{
-						Name:  "hex",
-						Usage: "decodes a hex string",
+						Name:    "hex",
+						Aliases: []string{"0x"},
+						Usage:   "decodes a hex string",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							out := os.Stdout
 							d := hex.NewDecoder(in)
 							_, err := io.Copy(out, d)
 							return err
@@ -154,7 +192,7 @@ func main() {
 							if err != nil {
 								return err
 							}
-							_, err = os.Stdout.Write(tokenData)
+							_, err = out.Write(tokenData)
 
 							return err
 						},
@@ -162,8 +200,9 @@ func main() {
 				},
 			},
 			{
-				Name:  "encode",
-				Usage: "encode std to something",
+				Name:    "encode",
+				Aliases: []string{"enc"},
+				Usage:   "encode std to something",
 				Subcommands: []*cli.Command{
 					{
 						Name:  "url",
@@ -171,7 +210,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							b, err := ioutil.ReadAll(in)
 							if err != nil {
@@ -180,6 +218,25 @@ func main() {
 							s := url.QueryEscape(string(b))
 							_, err = out.Write([]byte(s))
 
+							return err
+						},
+					},
+					{
+						Name:    "binary",
+						Aliases: []string{"bin", "0b"},
+						Usage:   "encodes data into a binary string",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+							bs, err := ioutil.ReadAll(in)
+							if err != nil {
+								return err
+							}
+							for _, b := range bs {
+								_, err = out.Write([]byte(fmt.Sprintf("%08b", b)))
+								if err != nil {
+									return err
+								}
+							}
 							return err
 						},
 					},
@@ -196,7 +253,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							e := base64.StdEncoding
 							if c.Bool("url") {
@@ -223,7 +279,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							e := base32.StdEncoding
 							if c.Bool("hex") {
@@ -238,11 +293,11 @@ func main() {
 						},
 					},
 					{
-						Name:  "hex",
-						Usage: "hex encodes a data",
+						Name:    "hex",
+						Aliases: []string{"0x"},
+						Usage:   "hex encodes a data",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							out := os.Stdout
 							d := hex.NewEncoder(out)
 							_, err := io.Copy(d, in)
 							return err
@@ -251,8 +306,9 @@ func main() {
 				},
 			},
 			{
-				Name:  "fmt",
-				Usage: "format something from std in",
+				Name:    "fmt",
+				Aliases: []string{"format"},
+				Usage:   "format something from std in",
 				Subcommands: []*cli.Command{
 					{
 						Name: "json",
@@ -268,7 +324,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							indent := c.Int("indent")
 							color := c.Bool("color")
@@ -300,7 +355,6 @@ func main() {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
-							out := os.Stdout
 
 							indent := c.Int("indent")
 
@@ -349,7 +403,7 @@ func main() {
 								return err
 							}
 
-							_, err = os.Stdout.Write([]byte(str))
+							_, err = out.Write([]byte(str))
 							return err
 						},
 					},
@@ -357,14 +411,15 @@ func main() {
 			},
 
 			{
-				Name:  "rand",
-				Usage: "generate something random",
+				Name:    "rand",
+				Aliases: []string{"random"},
+				Usage:   "generate something random",
 				Subcommands: []*cli.Command{
 					{
 						Name:  "uuid",
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
-							_, err := os.Stdout.Write([]byte(uuid.NewV4().String()))
+							_, err := out.Write([]byte(uuid.NewV4().String()))
 							return err
 						},
 					},
@@ -400,7 +455,7 @@ func main() {
 									acc += string(runes[int(b[0])%len(runes)])
 								}
 							}
-							_, err = os.Stdout.Write([]byte(acc))
+							_, err = out.Write([]byte(acc))
 							return err
 						},
 					},
@@ -424,7 +479,54 @@ func main() {
 							if n != len(dest) {
 								return errors.New("could not generate enough random")
 							}
-							_, err = os.Stdout.Write(dest)
+							_, err = out.Write(dest)
+
+							return err
+						},
+					},
+				},
+			},
+
+
+			{
+				Name:    "conv",
+				Aliases: []string{"convert"},
+				Usage:   "convert something",
+				Subcommands: []*cli.Command{
+					{
+						Name:    "int-to-string",
+						Aliases: []string{"i2s"},
+						Usage:   "converts byte to a string representing the number",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+							bs, err := ioutil.ReadAll(in)
+							if err != nil {
+								return err
+							}
+							i := big.NewInt(0)
+							i.SetBytes(bs)
+							_, err = out.Write([]byte(i.String()))
+
+							return err
+						},
+					},
+					{
+						Name:    "string-to-int",
+						Aliases: []string{"s2i"},
+						Usage:   "converts a string containing a number to bytes representing the number",
+						Action: func(c *cli.Context) error {
+							in := os.Stdin
+							bs, err := ioutil.ReadAll(in)
+							if err != nil {
+								return err
+							}
+
+							f, _, err := big.ParseFloat(string(bytes.TrimSpace(bs)), 10, 0, big.ToZero)
+							if err != nil {
+								return err
+							}
+							i, _ := f.Int(nil)
+							_, err = out.Write(i.Bytes())
 
 							return err
 						},
@@ -434,9 +536,46 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+
+	var args = os.Args
+	var leftover []string
+	for i, a := range os.Args {
+		if a == "--" {
+			args = os.Args[:i]
+			leftover = os.Args[i+1:]
+			break
+		}
+	}
+
+	out = os.Stdout
+
+	var wg sync.WaitGroup
+	if len(leftover) > 0 {
+		wg.Add(1)
+
+		cmd := exec.Command("/proc/self/exe", leftover...)
+		r, w, err := os.Pipe()
+		if err != nil{
+			panic(err)
+		}
+		out = w
+		cmd.Stdin = r
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		go func() {
+			defer wg.Done()
+			err := cmd.Start()
+
+			if err != nil{
+				os.Stderr.Write([]byte(err.Error()))
+			}
+
+		}()
+	}
+	err := app.Run(args)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "got err", err)
 		os.Exit(1)
 	}
+	wg.Wait()
 }
