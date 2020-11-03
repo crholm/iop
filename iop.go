@@ -373,6 +373,40 @@ func main() {
 							return err
 						},
 					},
+					{
+						Name: "lower",
+						Action: func(c *cli.Context) error {
+
+							in := os.Stdin
+
+							b, err := ioutil.ReadAll(in)
+
+							if err != nil {
+								return err
+							}
+
+							_, err = io.Copy(out, bytes.NewBuffer(bytes.ToLower(b)))
+
+							return err
+						},
+					},
+					{
+						Name: "upper",
+						Action: func(c *cli.Context) error {
+
+							in := os.Stdin
+
+							b, err := ioutil.ReadAll(in)
+
+							if err != nil {
+								return err
+							}
+
+							_, err = io.Copy(out, bytes.NewBuffer(bytes.ToUpper(b)))
+
+							return err
+						},
+					},
 				},
 			},
 			{
