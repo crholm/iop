@@ -1,4 +1,4 @@
-module iop
+module github.com/crholm/iop
 
 go 1.13
 
