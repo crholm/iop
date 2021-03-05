@@ -12,7 +12,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/go-xmlfmt/xmlfmt"
 	"github.com/hokaccha/go-prettyjson"
-	"github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
@@ -453,7 +453,7 @@ func main() {
 						Name:  "uuid",
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
-							_, err := out.Write([]byte(uuid.NewV4().String()))
+							_, err := out.Write([]byte(uuid.New().String()))
 							return err
 						},
 					},
