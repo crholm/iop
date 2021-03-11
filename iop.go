@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	rand2 "math/rand"
+	_ "embed"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
@@ -11,8 +13,8 @@ import (
 	"fmt"
 	"github.com/atotto/clipboard"
 	"github.com/go-xmlfmt/xmlfmt"
-	"github.com/hokaccha/go-prettyjson"
 	"github.com/google/uuid"
+	"github.com/hokaccha/go-prettyjson"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/ioutil"
@@ -23,16 +25,21 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
-
 var out io.Writer
+
+//go:embed wordlist_en
+var enWordlist string
+//go:embed wordlist_sv
+var svWordlist string
+
 func main() {
 
-
 	app := &cli.App{
-		Name:  "iop",
-		Usage: "a tool for converting and formatting things from std in to std out",
+		Name:      "iop",
+		Usage:     "a tool for converting and formatting things from std in to std out",
 		UsageText: "You can use -- as piping between commands, eg. echo 124 | iop conv string-to-int -- encode hex -- clip copy",
 		Commands: []*cli.Command{
 			{
@@ -450,6 +457,58 @@ func main() {
 				Usage:   "generate something random",
 				Subcommands: []*cli.Command{
 					{
+						Name:  "pass",
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:        "short",
+								Usage:       "returns shorter words",
+							},
+							&cli.BoolFlag{
+								Name:        "mix",
+								Usage:       "mixes swedish and english",
+							},
+						},
+						Usage: "generates a random passphrase",
+						Action: func(c *cli.Context) error {
+							short := c.Bool("short")
+							mix := c.Bool("mix")
+							l := 4
+							ls := c.Args().Get(0)
+							ii, err := strconv.ParseInt(ls, 10, 32)
+							if err == nil {
+								l = int(ii)
+							}
+
+							list := strings.Split(enWordlist, "\n")
+							if mix {
+								list = append(list, strings.Split(svWordlist, "\n")...)
+								rand2.Seed(time.Now().UnixNano())
+								rand2.Shuffle(len(list), func(i, j int) { list[i], list[j] = list[j],list[i] })
+							}
+
+							var res []string
+
+							for i := 0; i < l; {
+								index, err := rand.Int(rand.Reader, big.NewInt(int64(len(list))))
+								if err != nil{
+									return err
+								}
+
+								word := list[index.Int64()]
+
+								if short && len(word) > 5{
+									continue
+								}
+
+								res = append(res, word)
+								i++
+							}
+
+							_, err = out.Write([]byte(strings.Join(res, " ")))
+							return err
+						},
+					},
+					{
 						Name:  "uuid",
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
@@ -570,7 +629,6 @@ func main() {
 		},
 	}
 
-
 	var args = os.Args
 	var leftover []string
 	for i, a := range os.Args {
@@ -589,7 +647,7 @@ func main() {
 
 		cmd := exec.Command("/proc/self/exe", leftover...)
 		r, w, err := os.Pipe()
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 		out = w
@@ -600,7 +658,7 @@ func main() {
 			defer wg.Done()
 			err := cmd.Start()
 
-			if err != nil{
+			if err != nil {
 				os.Stderr.Write([]byte(err.Error()))
 			}
 
