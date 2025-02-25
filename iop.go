@@ -3,12 +3,13 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	rand2 "math/rand"
 	_ "embed"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"github.com/atotto/clipboard"
@@ -16,9 +17,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v2"
 	"io"
-	"io/ioutil"
 	"math/big"
+	rand2 "math/rand"
 	"net/url"
 	"os"
 	"os/exec"
@@ -32,12 +34,57 @@ var out io.Writer
 
 //go:embed wordlist_en
 var enWordlist string
+
 //go:embed wordlist_sv
 var svWordlist string
 
 func main() {
 
-	app := &cli.App{
+	var args = os.Args
+	var leftover []string
+	for i, a := range os.Args {
+		if a == "--" {
+			args = os.Args[:i]
+			leftover = os.Args[i+1:]
+			break
+		}
+	}
+
+	out = os.Stdout
+
+	var wg sync.WaitGroup
+	if len(leftover) > 0 {
+		wg.Add(1)
+
+		cmd := exec.Command("/proc/self/exe", leftover...)
+		r, w, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+		out = w
+		cmd.Stdin = r
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		go func() {
+			defer wg.Done()
+			err := cmd.Start()
+
+			if err != nil {
+				os.Stderr.Write([]byte(err.Error()))
+			}
+
+		}()
+	}
+	err := createApp().Run(args)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "got err", err)
+		os.Exit(1)
+	}
+	wg.Wait()
+}
+
+func createApp() *cli.App {
+	return &cli.App{
 		Name:      "iop",
 		Usage:     "a tool for converting and formatting things from std in to std out",
 		UsageText: "You can use -- as piping between commands, eg. echo 124 | iop conv string-to-int -- encode hex -- clip copy",
@@ -54,7 +101,7 @@ func main() {
 
 							in := os.Stdin
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -73,7 +120,7 @@ func main() {
 						Usage:   "decodes a string of 1s and 0s into binary data",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							bs, err := ioutil.ReadAll(in)
+							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -162,7 +209,7 @@ func main() {
 						Usage: "decodes a jwt token",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -218,7 +265,7 @@ func main() {
 
 							in := os.Stdin
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -234,7 +281,7 @@ func main() {
 						Usage:   "encodes data into a binary string",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							bs, err := ioutil.ReadAll(in)
+							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -335,7 +382,7 @@ func main() {
 							indent := c.Int("indent")
 							color := c.Bool("color")
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -365,7 +412,7 @@ func main() {
 
 							indent := c.Int("indent")
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 
 							if err != nil {
 								return err
@@ -386,7 +433,7 @@ func main() {
 
 							in := os.Stdin
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 
 							if err != nil {
 								return err
@@ -403,7 +450,7 @@ func main() {
 
 							in := os.Stdin
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 
 							if err != nil {
 								return err
@@ -427,7 +474,7 @@ func main() {
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
 
-							b, err := ioutil.ReadAll(in)
+							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -457,15 +504,15 @@ func main() {
 				Usage:   "generate something random",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "pass",
+						Name: "pass",
 						Flags: []cli.Flag{
 							&cli.BoolFlag{
-								Name:        "short",
-								Usage:       "returns shorter words",
+								Name:  "short",
+								Usage: "returns shorter words",
 							},
 							&cli.BoolFlag{
-								Name:        "mix",
-								Usage:       "mixes swedish and english",
+								Name:  "mix",
+								Usage: "mixes swedish and english",
 							},
 						},
 						Usage: "generates a random passphrase",
@@ -483,20 +530,20 @@ func main() {
 							if mix {
 								list = append(list, strings.Split(svWordlist, "\n")...)
 								rand2.Seed(time.Now().UnixNano())
-								rand2.Shuffle(len(list), func(i, j int) { list[i], list[j] = list[j],list[i] })
+								rand2.Shuffle(len(list), func(i, j int) { list[i], list[j] = list[j], list[i] })
 							}
 
 							var res []string
 
 							for i := 0; i < l; {
 								index, err := rand.Int(rand.Reader, big.NewInt(int64(len(list))))
-								if err != nil{
+								if err != nil {
 									return err
 								}
 
 								word := list[index.Int64()]
 
-								if short && len(word) > 5{
+								if short && len(word) > 5 {
 									continue
 								}
 
@@ -580,19 +627,93 @@ func main() {
 				},
 			},
 
-
 			{
 				Name:    "conv",
 				Aliases: []string{"convert"},
 				Usage:   "convert something",
 				Subcommands: []*cli.Command{
+
+					{
+						Name:    "csv-to-yaml",
+						Aliases: []string{"csv-to-yml"},
+						Usage:   "converts a csv file to yaml",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:    "delimiter",
+								Aliases: []string{"d"},
+								Value:   ",",
+							},
+							&cli.BoolFlag{
+								Name:    "with-headers",
+								Aliases: []string{"H"},
+							},
+							&cli.StringFlag{
+								Name:  "in",
+								Value: "-",
+							},
+							&cli.StringFlag{
+								Name:  "out",
+								Value: "-",
+							},
+						},
+						Action: csvTo(yaml.NewEncoder(out)),
+					},
+					{
+						Name:  "csv-to-json",
+						Usage: "converts a csv file to json",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:    "delimiter",
+								Aliases: []string{"d"},
+								Value:   ",",
+							},
+							&cli.BoolFlag{
+								Name:    "with-headers",
+								Aliases: []string{"H"},
+							},
+							&cli.StringFlag{
+								Name:  "in",
+								Value: "-",
+							},
+							&cli.StringFlag{
+								Name:  "out",
+								Value: "-",
+							},
+						},
+						Action: csvTo(json.NewEncoder(out)),
+					},
+					{
+						Name:  "csv-to-xml",
+						Usage: "converts a csv file to xml",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:    "delimiter",
+								Aliases: []string{"d"},
+								Value:   ",",
+							},
+							&cli.BoolFlag{
+								Name:    "with-headers",
+								Aliases: []string{"H"},
+							},
+							&cli.StringFlag{
+								Name:  "in",
+								Value: "-",
+							},
+							&cli.StringFlag{
+								Name:  "out",
+								Value: "-",
+							},
+						},
+						Action: csvTo(xml.NewEncoder(out)),
+					},
+
 					{
 						Name:    "int-to-string",
 						Aliases: []string{"i2s"},
 						Usage:   "converts byte to a string representing the number",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							bs, err := ioutil.ReadAll(in)
+							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -609,7 +730,7 @@ func main() {
 						Usage:   "converts a string containing a number to bytes representing the number",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
-							bs, err := ioutil.ReadAll(in)
+							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
 							}
@@ -628,46 +749,74 @@ func main() {
 			},
 		},
 	}
+}
 
-	var args = os.Args
-	var leftover []string
-	for i, a := range os.Args {
-		if a == "--" {
-			args = os.Args[:i]
-			leftover = os.Args[i+1:]
-			break
-		}
-	}
+type Encoder interface {
+	Encode(v any) (err error)
+}
 
-	out = os.Stdout
+func csvTo(enc Encoder) func(c *cli.Context) error {
+	return func(c *cli.Context) error {
+		var err error
+		var in io.Reader = os.Stdin
 
-	var wg sync.WaitGroup
-	if len(leftover) > 0 {
-		wg.Add(1)
-
-		cmd := exec.Command("/proc/self/exe", leftover...)
-		r, w, err := os.Pipe()
-		if err != nil {
-			panic(err)
-		}
-		out = w
-		cmd.Stdin = r
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		go func() {
-			defer wg.Done()
-			err := cmd.Start()
-
+		if c.String("in") != "-" {
+			f, err := os.Open(c.String("in"))
 			if err != nil {
-				os.Stderr.Write([]byte(err.Error()))
+				return err
+			}
+			defer f.Close()
+			in = f
+		}
+
+		reader := csv.NewReader(in)
+
+		switch c.String("delimiter") {
+		case "\\t":
+			reader.Comma = '\t'
+		case "\\n":
+			reader.Comma = '\n'
+		default:
+			reader.Comma = rune(c.String("delimiter")[0])
+		}
+		reader.LazyQuotes = true
+
+		var headers []string
+		if c.Bool("with-headers") {
+			headers, err = reader.Read()
+			if err != nil {
+				return err
+			}
+		}
+
+		getName := func(col int) string {
+			if len(headers) > col {
+				return headers[col]
+			}
+			return fmt.Sprintf("col_%d", col)
+		}
+
+		rows := []map[string]string{}
+		for {
+			record, err := reader.Read()
+			if err == io.EOF {
+				break
 			}
 
-		}()
+			row := map[string]string{}
+			for i, v := range record {
+				row[getName(i)] = v
+			}
+
+			rows = append(rows, row)
+		}
+
+		err = enc.Encode(rows)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
-	err := app.Run(args)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "got err", err)
-		os.Exit(1)
-	}
-	wg.Wait()
+
 }
