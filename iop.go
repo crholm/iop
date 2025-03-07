@@ -16,6 +16,7 @@ import (
 	"github.com/go-xmlfmt/xmlfmt"
 	"github.com/google/uuid"
 	"github.com/hokaccha/go-prettyjson"
+	"github.com/rs/xid"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
 	"io"
@@ -464,44 +465,35 @@ func createApp() *cli.App {
 				},
 			},
 			{
-				Name:  "clip",
-				Usage: "managing clipboard",
-				Subcommands: []*cli.Command{
-					{
-						Name:    "copy",
-						Aliases: []string{"to", "c"},
-						Usage:   "puts things from std in onto the clipboard",
-						Action: func(c *cli.Context) error {
-							in := os.Stdin
+				Name:  "copy",
+				Usage: "puts things from std in onto the clipboard",
+				Action: func(c *cli.Context) error {
+					in := os.Stdin
 
-							b, err := io.ReadAll(in)
-							if err != nil {
-								return err
-							}
-							return clipboard.WriteAll(string(b))
-						},
-					},
-					{
-						Name:    "paste",
-						Aliases: []string{"from", "v"},
-						Usage:   "puts things in clipboard onto std out",
-						Action: func(c *cli.Context) error {
-							str, err := clipboard.ReadAll()
-							if err != nil {
-								return err
-							}
-
-							_, err = out.Write([]byte(str))
-							return err
-						},
-					},
+					b, err := io.ReadAll(in)
+					if err != nil {
+						return err
+					}
+					return clipboard.WriteAll(string(b))
 				},
 			},
-
 			{
-				Name:    "rand",
-				Aliases: []string{"random"},
-				Usage:   "generate something random",
+				Name:  "paste",
+				Usage: "puts things in clipboard onto std out",
+				Action: func(c *cli.Context) error {
+					str, err := clipboard.ReadAll()
+					if err != nil {
+						return err
+					}
+
+					_, err = out.Write([]byte(str))
+					return err
+				},
+			},
+			{
+				Name:    "gen",
+				Aliases: []string{"generate"},
+				Usage:   "generate something",
 				Subcommands: []*cli.Command{
 					{
 						Name: "pass",
@@ -560,6 +552,14 @@ func createApp() *cli.App {
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
 							_, err := out.Write([]byte(uuid.New().String()))
+							return err
+						},
+					},
+					{
+						Name:  "xid",
+						Usage: "generate a xid, https://github.com/rs/xid",
+						Action: func(c *cli.Context) error {
+							_, err := out.Write([]byte(xid.New().String()))
 							return err
 						},
 					},
