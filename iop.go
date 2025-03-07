@@ -31,8 +31,6 @@ import (
 	"time"
 )
 
-var out io.Writer
-
 //go:embed wordlist_en
 var enWordlist string
 
@@ -41,54 +39,75 @@ var svWordlist string
 
 func main() {
 
-	var args = os.Args
-	var leftover []string
-	for i, a := range os.Args {
+	var commands [][]string
+	var command []string
+	for _, a := range os.Args[1:] {
 		if a == "--" {
-			args = os.Args[:i]
-			leftover = os.Args[i+1:]
-			break
+			commands = append(commands, command)
+			command = nil
+			continue
 		}
+		command = append(command, a)
+	}
+	commands = append(commands, command)
+
+	if len(commands) > 1 {
+		multiSpawn(commands)
 	}
 
-	out = os.Stdout
-
-	var wg sync.WaitGroup
-	if len(leftover) > 0 {
-		wg.Add(1)
-
-		cmd := exec.Command("/proc/self/exe", leftover...)
-		r, w, err := os.Pipe()
-		if err != nil {
-			panic(err)
-		}
-		out = w
-		cmd.Stdin = r
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		go func() {
-			defer wg.Done()
-			err := cmd.Start()
-
-			if err != nil {
-				os.Stderr.Write([]byte(err.Error()))
-			}
-
-		}()
-	}
-	err := createApp().Run(args)
+	err := createApp().Run(append([]string{"/proc/self/exe"}, commands[0]...))
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "got err", err)
 		os.Exit(1)
 	}
+
+}
+
+func multiSpawn(commands [][]string) {
+	var wg sync.WaitGroup
+	wg.Add(len(commands))
+
+	cmds := make([]*exec.Cmd, len(commands))
+	for i, args := range commands {
+		cmds[i] = exec.Command("/proc/self/exe", args...)
+	}
+
+	for i, cmd := range cmds {
+		if i == 0 {
+			cmd.Stdin = os.Stdin
+		}
+		if i > 0 {
+			cmd.Stdin, _ = cmds[i-1].StdoutPipe()
+		}
+		if i == len(commands)-1 {
+			cmd.Stdout = os.Stdout
+		}
+
+		go func(cmd *exec.Cmd) {
+			defer wg.Done()
+			defer cmd.Wait() // Very important to let all io loops finish writing to stdout and stderr
+			err := cmd.Start()
+			if err != nil {
+				os.Stderr.Write([]byte(err.Error()))
+			}
+
+		}(cmd)
+	}
+
 	wg.Wait()
+
+	os.Exit(0)
 }
 
 func createApp() *cli.App {
-	return &cli.App{
+
+	app := &cli.App{
 		Name:      "iop",
 		Usage:     "a tool for converting and formatting things from std in to std out",
 		UsageText: "You can use -- as piping between commands, eg. echo 124 | iop conv string-to-int -- encode hex -- clip copy",
+		After: func(context *cli.Context) error {
+			return nil
+		},
 		Commands: []*cli.Command{
 			{
 				Name:    "decode",
@@ -101,6 +120,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							b, err := io.ReadAll(in)
 							if err != nil {
@@ -121,6 +141,8 @@ func createApp() *cli.App {
 						Usage:   "decodes a string of 1s and 0s into binary data",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
@@ -161,6 +183,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							e := base64.StdEncoding
 							if c.Bool("url") {
@@ -184,6 +207,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							e := base32.StdEncoding
 							if c.Bool("hex") {
@@ -200,6 +224,8 @@ func createApp() *cli.App {
 						Usage:   "decodes a hex string",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							d := hex.NewDecoder(in)
 							_, err := io.Copy(out, d)
 							return err
@@ -210,6 +236,8 @@ func createApp() *cli.App {
 						Usage: "decodes a jwt token",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							b, err := io.ReadAll(in)
 							if err != nil {
 								return err
@@ -265,6 +293,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							b, err := io.ReadAll(in)
 							if err != nil {
@@ -282,6 +311,8 @@ func createApp() *cli.App {
 						Usage:   "encodes data into a binary string",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
@@ -308,6 +339,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							e := base64.StdEncoding
 							if c.Bool("url") {
@@ -334,6 +366,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							e := base32.StdEncoding
 							if c.Bool("hex") {
@@ -353,6 +386,8 @@ func createApp() *cli.App {
 						Usage:   "hex encodes a data",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							d := hex.NewEncoder(out)
 							_, err := io.Copy(d, in)
 							return err
@@ -379,6 +414,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							indent := c.Int("indent")
 							color := c.Bool("color")
@@ -410,6 +446,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							indent := c.Int("indent")
 
@@ -433,6 +470,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							b, err := io.ReadAll(in)
 
@@ -450,6 +488,7 @@ func createApp() *cli.App {
 						Action: func(c *cli.Context) error {
 
 							in := os.Stdin
+							out := os.Stdout
 
 							b, err := io.ReadAll(in)
 
@@ -481,6 +520,8 @@ func createApp() *cli.App {
 				Name:  "paste",
 				Usage: "puts things in clipboard onto std out",
 				Action: func(c *cli.Context) error {
+					out := os.Stdout
+
 					str, err := clipboard.ReadAll()
 					if err != nil {
 						return err
@@ -509,6 +550,8 @@ func createApp() *cli.App {
 						},
 						Usage: "generates a random passphrase",
 						Action: func(c *cli.Context) error {
+							out := os.Stdout
+
 							short := c.Bool("short")
 							mix := c.Bool("mix")
 							l := 4
@@ -551,6 +594,8 @@ func createApp() *cli.App {
 						Name:  "uuid",
 						Usage: "generate a random v4 uuid",
 						Action: func(c *cli.Context) error {
+							out := os.Stdout
+
 							_, err := out.Write([]byte(uuid.New().String()))
 							return err
 						},
@@ -559,6 +604,8 @@ func createApp() *cli.App {
 						Name:  "xid",
 						Usage: "generate a xid, https://github.com/rs/xid",
 						Action: func(c *cli.Context) error {
+							out := os.Stdout
+
 							_, err := out.Write([]byte(xid.New().String()))
 							return err
 						},
@@ -567,6 +614,8 @@ func createApp() *cli.App {
 						Name:  "string",
 						Usage: "generate a random string",
 						Action: func(c *cli.Context) error {
+							out := os.Stdout
+
 							l := 20
 
 							ls := c.Args().Get(0)
@@ -603,6 +652,8 @@ func createApp() *cli.App {
 						Name:  "bytes",
 						Usage: "generate random bytes",
 						Action: func(c *cli.Context) error {
+							out := os.Stdout
+
 							l := 20
 							ls := c.Args().Get(0)
 							ii, err := strconv.ParseInt(ls, 10, 32)
@@ -656,7 +707,7 @@ func createApp() *cli.App {
 								Value: "-",
 							},
 						},
-						Action: csvTo(yaml.NewEncoder(out)),
+						Action: csvTo(yaml.NewEncoder(os.Stdout)),
 					},
 					{
 						Name:  "csv-to-json",
@@ -680,7 +731,7 @@ func createApp() *cli.App {
 								Value: "-",
 							},
 						},
-						Action: csvTo(json.NewEncoder(out)),
+						Action: csvTo(json.NewEncoder(os.Stdout)),
 					},
 					{
 						Name:  "csv-to-xml",
@@ -704,7 +755,7 @@ func createApp() *cli.App {
 								Value: "-",
 							},
 						},
-						Action: csvTo(xml.NewEncoder(out)),
+						Action: csvTo(xml.NewEncoder(os.Stdout)),
 					},
 
 					{
@@ -713,6 +764,8 @@ func createApp() *cli.App {
 						Usage:   "converts byte to a string representing the number",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
@@ -730,6 +783,8 @@ func createApp() *cli.App {
 						Usage:   "converts a string containing a number to bytes representing the number",
 						Action: func(c *cli.Context) error {
 							in := os.Stdin
+							out := os.Stdout
+
 							bs, err := io.ReadAll(in)
 							if err != nil {
 								return err
@@ -749,6 +804,7 @@ func createApp() *cli.App {
 			},
 		},
 	}
+	return app
 }
 
 type Encoder interface {
@@ -758,7 +814,7 @@ type Encoder interface {
 func csvTo(enc Encoder) func(c *cli.Context) error {
 	return func(c *cli.Context) error {
 		var err error
-		var in io.Reader = os.Stdin
+		in := os.Stdin
 
 		if c.String("in") != "-" {
 			f, err := os.Open(c.String("in"))
