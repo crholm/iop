@@ -62,6 +62,8 @@ func multiSpawn(commands [][]string) {
 			cmd.Stdout = os.Stdout
 		}
 
+		cmd.Stderr = os.Stderr
+
 		go func(cmd *exec.Cmd) {
 			defer wg.Done()
 			defer cmd.Wait() // Very important to let all io loops finish writing to stdout and stderr

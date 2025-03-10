@@ -7,13 +7,19 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"github.com/hokaccha/go-prettyjson"
+	"github.com/pelletier/go-toml/v2"
+	"github.com/rs/xid"
 	"github.com/urfave/cli/v3"
+	"gopkg.in/yaml.v3"
 	"io"
+	"math/big"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func decodeURL(ctx context.Context, c *cli.Command) error {
@@ -147,4 +153,64 @@ func decodeJWT(ctx context.Context, c *cli.Command) error {
 	_, err = out.Write(tokenData)
 
 	return err
+}
+
+func decodeXID(ctx context.Context, c *cli.Command) error {
+	in := c.Reader
+	out := c.Writer
+
+	b, err := io.ReadAll(in)
+	if err != nil {
+		return fmt.Errorf("failed to read input: %s", err)
+	}
+
+	id, err := xid.FromString(string(b))
+	if err != nil {
+		return fmt.Errorf("failed to parse xid: %s", err)
+	}
+
+	type xid struct {
+		Time    time.Time `yaml:"time" toml:"time" json:"time" xml:"time"`
+		Machine int64     `yaml:"machine" toml:"machine" json:"machine" xml:"machine"`
+		Pid     uint16    `yaml:"pid" toml:"pid" json:"pid" xml:"pid"`
+		Counter int32     `yaml:"counter" toml:"counter" json:"counter" xml:"counter"`
+	}
+
+	ii := big.Int{}
+	ii.SetBytes(id.Machine())
+
+	uid := xid{
+		Time:    id.Time().In(time.UTC),
+		Machine: ii.Int64(),
+		Pid:     id.Pid(),
+		Counter: id.Counter(),
+	}
+
+	var marshaller func(any) ([]byte, error)
+
+	switch c.String("format") {
+	case "json":
+		marshaller = json.Marshal
+	case "xml":
+		marshaller = xml.Marshal
+	case "yaml", "yml":
+		marshaller = yaml.Marshal
+	case "toml":
+		marshaller = toml.Marshal
+	case "text", "txt":
+		marshaller = func(z any) ([]byte, error) {
+			return []byte(fmt.Sprintf("%v", z)), nil
+		}
+	default:
+		marshaller = json.Marshal
+	}
+
+	j, err := marshaller(uid)
+	if err != nil {
+		return fmt.Errorf("failed to marshal json: %s", err)
+	}
+	_, err = out.Write(j)
+
+	return err
+
 }

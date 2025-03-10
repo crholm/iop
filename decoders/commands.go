@@ -52,4 +52,17 @@ var Commands = []*cli.Command{
 		Usage:  "decodes a jwt token",
 		Action: decodeJWT,
 	},
+	{
+		Name: "xid",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "format",
+				Value: "json",
+				Usage: "output format, [json | yaml | xml ]",
+			},
+		},
+
+		Usage:  "decodes a jwt token",
+		Action: decodeXID,
+	},
 }

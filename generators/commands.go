@@ -3,6 +3,7 @@ package generators
 import (
 	_ "embed"
 	"github.com/urfave/cli/v3"
+	"time"
 )
 
 //go:embed wordlist_en
@@ -56,6 +57,27 @@ var Commands = []*cli.Command{
 		Name:  "xid",
 		Usage: "generate a xid, https://github.com/rs/xid",
 
+		Flags: []cli.Flag{
+			&cli.TimestampFlag{
+				Name: "time",
+				Config: cli.TimestampConfig{
+					Timezone: time.Local,
+					Layouts: []string{
+						time.DateTime,
+						time.RFC3339,
+					},
+				},
+			},
+			&cli.IntFlag{
+				Name: "counter",
+			},
+			&cli.IntFlag{
+				Name: "machine",
+			},
+			&cli.IntFlag{
+				Name: "pid",
+			},
+		},
 		Action: generateXID,
 	},
 	{

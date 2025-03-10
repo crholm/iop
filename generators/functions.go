@@ -90,8 +90,35 @@ func generateUUID(ctx context.Context, c *cli.Command) error {
 
 func generateXID(ctx context.Context, c *cli.Command) error {
 	out := c.Writer
+	x := xid.New()
+	ts := c.Timestamp("time")
+	if !ts.IsZero() {
+		unix := uint32(ts.Unix())
+		x[0] = byte(unix >> 24)
+		x[1] = byte(unix >> 16)
+		x[2] = byte(unix >> 8)
+		x[3] = byte(unix)
 
-	_, err := out.Write([]byte(xid.New().String()))
+	}
+	machine := c.Int("machine")
+	if machine != 0 {
+		x[4] = byte(machine >> 16)
+		x[5] = byte(machine >> 8)
+		x[6] = byte(machine)
+	}
+	pid := uint16(c.Int("pid"))
+	if pid != 0 {
+		x[7] = byte(pid >> 8)
+		x[8] = byte(pid)
+	}
+	counter := c.Int("counter")
+	if counter != 0 {
+		x[9] = byte(counter >> 16)
+		x[10] = byte(counter >> 8)
+		x[11] = byte(counter)
+	}
+
+	_, err := out.Write([]byte(x.String()))
 	return err
 }
 

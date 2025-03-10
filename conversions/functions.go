@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"github.com/modfin/henry/mapz"
 	"github.com/modfin/henry/slicez"
 	"github.com/urfave/cli/v3"
 	"io"
@@ -59,7 +60,25 @@ func stringToInt(ctx context.Context, c *cli.Command) error {
 }
 
 type encoder interface {
-	Encode(v any) (err error)
+	Encode(v any) error
+}
+type decoder interface {
+	Decode(v any) error
+}
+
+func stdFromTo(decode func(r io.Reader) decoder, encode func(w io.Writer) encoder) cli.ActionFunc {
+	return func(ctx context.Context, command *cli.Command) error {
+		in := command.Reader
+		out := command.Writer
+
+		var item any
+
+		err := decode(in).Decode(&item)
+		if err != nil {
+			return err
+		}
+		return encode(out).Encode(item)
+	}
 }
 
 func csvTo(toEnc func(w io.Writer) encoder) func(ctx context.Context, c *cli.Command) error {
@@ -116,6 +135,66 @@ func csvTo(toEnc func(w io.Writer) encoder) func(ctx context.Context, c *cli.Com
 		if err != nil {
 			return err
 		}
+
+		return nil
+	}
+
+}
+
+func toCsv(decode func(r io.Reader) decoder) func(ctx context.Context, c *cli.Command) error {
+	return func(ctx context.Context, c *cli.Command) error {
+		in := c.Reader
+		out := c.Writer
+
+		var items []map[string]interface{}
+		err := decode(in).Decode(&items)
+		if err != nil {
+			return fmt.Errorf("failed to decode: %s", err)
+		}
+
+		if len(items) == 0 {
+			return nil
+		}
+
+		writer := csv.NewWriter(out)
+
+		switch c.String("delimiter") {
+		case "\\t":
+			writer.Comma = '\t'
+		case "\\n":
+			writer.Comma = '\n'
+		case "":
+			writer.Comma = ','
+		default:
+			writer.Comma = rune(c.String("delimiter")[0])
+		}
+
+		var headers []string
+		headers = slicez.Uniq(slicez.FlatMap(items, func(item map[string]interface{}) []string {
+			return mapz.Keys(item)
+		}))
+
+		err = writer.Write(headers)
+		if err != nil {
+			return fmt.Errorf("failed to write headers: %s", err)
+		}
+
+		for _, item := range items {
+			var rec []string
+			for _, v := range headers {
+				if item[v] == nil {
+					rec = append(rec, "")
+					continue
+				}
+				rec = append(rec, fmt.Sprintf("%v", item[v]))
+			}
+			err = writer.Write(rec)
+			if err != nil {
+				return fmt.Errorf("failed to write record: %s", err)
+			}
+		}
+
+		writer.Flush()
 
 		return nil
 	}
