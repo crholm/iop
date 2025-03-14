@@ -65,4 +65,9 @@ var Commands = []*cli.Command{
 		Usage:  "decodes a jwt token",
 		Action: decodeXID,
 	},
+	{
+		Name:   "mime",
+		Usage:  "decodes mime headers",
+		Action: decodeMIME,
+	},
 }

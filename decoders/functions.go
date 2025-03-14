@@ -10,13 +10,16 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/crholm/iop/utils"
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/rs/xid"
 	"github.com/urfave/cli/v3"
+	"golang.org/x/text/transform"
 	"gopkg.in/yaml.v3"
 	"io"
 	"math/big"
+	"mime"
 	"net/url"
 	"strings"
 	"time"
@@ -108,6 +111,42 @@ func decodeHex(ctx context.Context, c *cli.Command) error {
 	return err
 }
 
+func decodeMIME(ctx context.Context, c *cli.Command) error {
+	in := c.Reader
+	out := c.Writer
+
+	d := &mime.WordDecoder{}
+
+	d.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		charset = strings.ToLower(charset)
+		if m, ok := utils.CharsetEncodings[charset]; ok {
+			rr := transform.NewReader(input, m.NewDecoder())
+			return rr, nil
+		}
+
+		charset = utils.CharsetAliases[charset]
+		if m, ok := utils.CharsetEncodings[charset]; ok {
+			rr := transform.NewReader(input, m.NewDecoder())
+			return rr, nil
+		}
+
+		return input, nil
+	}
+
+	header, err := io.ReadAll(in)
+	if err != nil {
+		return fmt.Errorf("failed to read input: %s", err)
+	}
+	res, err := d.DecodeHeader(strings.TrimSpace(string(header)))
+	if err != nil {
+		return fmt.Errorf("failed to decode header: %s", err)
+	}
+
+	_, err = out.Write([]byte(res))
+	return err
+
+}
+
 func decodeJWT(ctx context.Context, c *cli.Command) error {
 	in := c.Reader
 	out := c.Writer
@@ -164,7 +203,7 @@ func decodeXID(ctx context.Context, c *cli.Command) error {
 		return fmt.Errorf("failed to read input: %s", err)
 	}
 
-	id, err := xid.FromString(string(b))
+	id, err := xid.FromString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return fmt.Errorf("failed to parse xid: %s", err)
 	}

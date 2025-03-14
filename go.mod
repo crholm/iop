@@ -13,6 +13,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.3
 	github.com/rs/xid v1.6.0
 	github.com/urfave/cli/v3 v3.0.0-beta1
+	golang.org/x/text v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
