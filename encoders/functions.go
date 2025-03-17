@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v3"
 	"io"
+	"mime"
 	"net/url"
 )
 
@@ -84,4 +85,31 @@ func hexEncode(ctx context.Context, c *cli.Command) error {
 	d := hex.NewEncoder(out)
 	_, err := io.Copy(d, in)
 	return err
+}
+
+func encodeMIME(ctx context.Context, command *cli.Command) error {
+
+	in := command.Reader
+	out := command.Writer
+
+	charset := command.String("charset")
+
+	schema := command.String("schema")
+	if schema != "b" && schema != "q" {
+		return fmt.Errorf("invalid schema, expext b or q: %s", schema)
+	}
+
+	b, err := io.ReadAll(in)
+
+	if err != nil {
+		return err
+	}
+	e := mime.WordEncoder(schema[0])
+
+	encoded := e.Encode(charset, string(b))
+
+	_, err = out.Write([]byte(encoded))
+
+	return err
+	
 }

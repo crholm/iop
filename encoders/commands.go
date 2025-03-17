@@ -46,4 +46,22 @@ var Commands = []*cli.Command{
 		Usage:   "hex encodes a data",
 		Action:  hexEncode,
 	},
+
+	{
+		Name:  "mime",
+		Usage: "encode text as mime headers RFC 2047, ascii representations of encoded words",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "charset",
+				Aliases: []string{"c"},
+				Value:   "utf-8",
+			},
+			&cli.StringFlag{
+				Name:  "schema",
+				Value: "b",
+				Usage: "schema to use, 'b' for base64 or 'q' for quoted printable",
+			},
+		},
+		Action: encodeMIME,
+	},
 }

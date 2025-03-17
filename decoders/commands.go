@@ -67,7 +67,7 @@ var Commands = []*cli.Command{
 	},
 	{
 		Name:   "mime",
-		Usage:  "decodes mime headers",
+		Usage:  "decodes mime headers RFC 2047, ascii representations of encoded words",
 		Action: decodeMIME,
 	},
 }
